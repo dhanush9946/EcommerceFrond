@@ -7,6 +7,10 @@ const AdminProducts = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [editingProduct, setEditingProduct] = useState(null);
+  
+  // Pagination State
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   const [newProduct, setNewProduct] = useState({
     name: "",
@@ -23,22 +27,20 @@ const AdminProducts = () => {
 
   // 🔹 Fetch products (ADMIN)
   useEffect(() => {
-    fetchProducts();
-  }, []);
+    fetchProducts(page);
+  }, [page]);
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (pageNum = 1) => {
     try {
       setLoading(true);
-      const res = await adminApi.get("/products");
-      setProducts(res.data.items || []); // ✅ FIX
-    } catch (err) {
+      // Ensure your API supports ?page= query param
+      const res = await adminApi.get(`/products?page=${pageNum}&pageSize=10`);
       
-  console.log("ERROR OBJECT:", err);
-  console.log("ERROR RESPONSE:", err.response);
-  console.log("ERROR MESSAGE:", err.message);
-  toast.error("Failed to fetch products");
+      setProducts(res.data.items || []);
+      setTotalPages(res.data.totalPages || 1);
+      setPage(res.data.page || pageNum);
 
-
+    } catch (err) {
       console.error(err);
       toast.error("Failed to fetch products");
     } finally {
@@ -46,7 +48,7 @@ const AdminProducts = () => {
     }
   };
 
-  // 🔍 Local search
+  // 🔍 Local search (Note: Ideally search should be backend-side for paginated data)
   const filteredProducts = products.filter(
     (p) =>
       p.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -66,19 +68,19 @@ const AdminProducts = () => {
       
       toast.success("Product added");
       setNewProduct({
-  name: "",
-  brand: "",
-  category: "",
-  price: "",
-  stock: "",
-  maxOrderQuantity: "",
-  gender: "",
-  description: "",
-  image: "",
-  status: "active",
-});
+        name: "",
+        brand: "",
+        category: "",
+        price: "",
+        stock: "",
+        maxOrderQuantity: "",
+        gender: "",
+        description: "",
+        imageUrl: "",
+        status: "active",
+      });
 
-      fetchProducts();
+      fetchProducts(page);
     } catch (err) {
       console.error(err);
       toast.error("Add product failed");
@@ -101,7 +103,7 @@ const AdminProducts = () => {
 
       toast.success("Product updated");
       setEditingProduct(null);
-      fetchProducts();
+      fetchProducts(page);
     } catch (err) {
       console.error(err);
       toast.error("Update failed");
@@ -113,7 +115,7 @@ const AdminProducts = () => {
     try {
       await adminApi.patch(`/products/update/${id}`);
       toast.success("Product deactivated");
-      fetchProducts();
+      fetchProducts(page);
     } catch (err) {
       console.error(err);
       toast.error("Delete failed");
@@ -124,7 +126,7 @@ const AdminProducts = () => {
   try {
     await adminApi.patch(`/products/${product.id}/status`);
     toast.success("Status updated");
-    fetchProducts();
+    fetchProducts(page);
   } catch {
     toast.error("Failed to update status");
   }
@@ -145,7 +147,7 @@ const AdminProducts = () => {
         onChange={(e) => setSearch(e.target.value)}
       />
 
-      {/* Add Product */}
+      {/* Add Product Form */}
       <div className="bg-gray-50 p-4 rounded-lg mb-6">
         <h3 className="font-semibold mb-3">Add Product</h3>
 
@@ -198,9 +200,9 @@ const AdminProducts = () => {
           <input
             placeholder="Image URL"
             className="border px-3 py-2 rounded col-span-2"
-            value={newProduct.image}
+            value={newProduct.imageUrl}
             onChange={(e) =>
-              setNewProduct({ ...newProduct, image: e.target.value })
+              setNewProduct({ ...newProduct, imageUrl: e.target.value })
             }
           />
         </div>
@@ -226,44 +228,55 @@ const AdminProducts = () => {
       {loading ? (
         <p>Loading...</p>
       ) : (
+        <>
         <table className="w-full border">
           <thead className="bg-gray-100">
             <tr>
-              <th>Name</th>
-              <th>Brand</th>
-              <th>Category</th>
-              <th>Price</th>
-              <th>Status</th>
-              <th>Actions</th>
+              <th className="p-2 border">Image</th>
+              <th className="p-2 border">Name</th>
+              <th className="p-2 border">Brand</th>
+              <th className="p-2 border">Category</th>
+              <th className="p-2 border">Price</th>
+              <th className="p-2 border">Stock</th>
+              <th className="p-2 border">Status</th>
+              <th className="p-2 border">Actions</th>
             </tr>
           </thead>
           <tbody>
             {filteredProducts.map((p) => (
-              <tr key={p.id} className="border-t">
-                <td>{p.name}</td>
-                <td>{p.brand}</td>
-                <td>{p.category}</td>
-                <td>₹{p.price}</td>
-                <td>
+              <tr key={p.id} className="border-t hover:bg-gray-50 text-center">
+                <td className="p-2 border">
+                  <img 
+                    src={p.imageUrl || "https://via.placeholder.com/50"} 
+                    alt={p.name} 
+                    className="w-12 h-12 object-cover rounded mx-auto border"
+                  />
+                </td>
+                <td className="p-2 border">{p.name}</td>
+                <td className="p-2 border">{p.brand}</td>
+                <td className="p-2 border">{p.category}</td>
+                <td className="p-2 border">₹{p.price}</td>
+                <td className="p-2 border">{p.stock}</td>
+                <td className="p-2 border">
                   <button
                     onClick={() => toggleStatus(p)}
-                    className={`px-2 py-1 rounded ${
-                      p.isActive ? "bg-green-200" : "bg-red-200"
+                    className={`px-2 py-1 rounded text-xs font-semibold ${
+                      p.isActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
                     }`}
                   >
-                    {p.isActive ? "active" : "inactive"}
+                    {p.isActive ? "Active" : "Inactive"}
                   </button>
                 </td>
-                <td>
+                <td className="p-2 border">
                   <button
                     onClick={() => setEditingProduct(p)}
-                    className="bg-blue-500 text-white px-2 py-1 mr-2 rounded"
+                    className="bg-blue-500 text-white px-2 py-1 mr-2 rounded text-xs"
                   >
                     Edit
                   </button>
                   <button
                     onClick={() => handleDelete(p.id)}
-                    className="bg-red-500 text-white px-2 py-1 rounded"
+                    className="bg-red-500 text-white px-2 py-1 rounded text-xs"
                   >
                     Delete
                   </button>
@@ -272,38 +285,62 @@ const AdminProducts = () => {
             ))}
           </tbody>
         </table>
+        
+        {/* Pagination Controls */}
+        <div className="flex justify-center items-center gap-4 mt-6">
+          <button
+            disabled={page === 1}
+            onClick={() => setPage(prev => Math.max(prev - 1, 1))}
+            className="px-4 py-2 bg-gray-200 rounded disabled:opacity-50 hover:bg-gray-300"
+          >
+            Previous
+          </button>
+          <span className="font-semibold">
+            Page {page} of {totalPages}
+          </span>
+          <button
+            disabled={page === totalPages}
+            onClick={() => setPage(prev => Math.min(prev + 1, totalPages))}
+            className="px-4 py-2 bg-gray-200 rounded disabled:opacity-50 hover:bg-gray-300"
+          >
+            Next
+          </button>
+        </div>
+        </>
       )}
 
       {/* Edit Modal */}
       {editingProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center">
-          <div className="bg-white p-6 rounded w-1/3">
-            <h3 className="font-bold mb-3">Edit Product</h3>
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded shadow-lg w-1/3">
+            <h3 className="font-bold mb-3 text-lg">Edit Product</h3>
 
             {["name", "brand", "category", "price", "imageUrl"].map((field) => (
-              <input
-                key={field}
-                className="border px-3 py-2 rounded w-full mb-2"
-                value={editingProduct[field]}
-                onChange={(e) =>
-                  setEditingProduct({
-                    ...editingProduct,
-                    [field]: e.target.value,
-                  })
-                }
-              />
+              <div key={field} className="mb-2">
+                 <label className="block text-xs font-bold text-gray-700 uppercase mb-1">{field}</label>
+                 <input
+                  className="border px-3 py-2 rounded w-full"
+                  value={editingProduct[field]}
+                  onChange={(e) =>
+                    setEditingProduct({
+                      ...editingProduct,
+                      [field]: e.target.value,
+                    })
+                  }
+                />
+              </div>
             ))}
 
-            <div className="flex justify-end gap-2 mt-3">
+            <div className="flex justify-end gap-2 mt-4">
               <button
                 onClick={() => setEditingProduct(null)}
-                className="px-4 py-2 bg-gray-400 text-white rounded"
+                className="px-4 py-2 bg-gray-400 text-white rounded hover:bg-gray-500"
               >
                 Cancel
               </button>
               <button
                 onClick={handleEditProduct}
-                className="px-4 py-2 bg-blue-600 text-white rounded"
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
               >
                 Save
               </button>

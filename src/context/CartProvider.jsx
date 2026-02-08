@@ -9,7 +9,9 @@ function CartProvider({ children }) {
   // 🔹 Load cart
   const loadCart = useCallback(async () => {
     const token = localStorage.getItem("accessToken");
-    if (!token) {
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+
+    if (!token || user.role === "Admin") {
       setCart([]);
       return;
     }
@@ -139,6 +141,7 @@ const clearCart = async () => {
         removeFromCart,
         clearCart,
         addItemToCartState,
+        setCart,
       }}
     >
       {children}

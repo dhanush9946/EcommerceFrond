@@ -6,7 +6,7 @@ import React, { useEffect, useState, useCallback, useContext } from "react";
 import { WishlistContext } from "./CreateContext";
 import api from "../services/api";
 import toast from "react-hot-toast";
-import { CartContext } from "../context/CreateContext";
+import { CartContext } from "./CreateContext";
 
 function WishListProvider({ children }) {
   const [wishlist, setWishlist] = useState([]);
@@ -15,6 +15,12 @@ function WishListProvider({ children }) {
 
   // ✅ GET wishlist (memoized)
   const loadWishlist = useCallback(async () => {
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    if (user.role === "Admin") {
+      setWishlist([]);
+      return;
+    }
+
     try {
       const res = await api.get("/user/wishlist");
       setWishlist(res.data || []);
@@ -85,6 +91,7 @@ function WishListProvider({ children }) {
         removeFromWishlist,
         moveToCart,
         loadWishlist,
+        setWishlist,
       }}
     >
       {children}

@@ -1,6 +1,7 @@
 
 import React, { useState } from "react";
 import api from "../../services/api";
+import { CartContext, WishlistContext } from "../../Context/CreateContext";
 import { useNavigate, Link } from "react-router-dom";
 import toast from "react-hot-toast";
 
@@ -10,6 +11,10 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
   const [loading, setLoading] = useState(false);
+
+  /* 🔹 NEW: Import contexts to trigger updates */
+  const { loadCart } = React.useContext(CartContext);
+  const { loadWishlist } = React.useContext(WishlistContext);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -37,6 +42,10 @@ function LoginPage() {
           role: res.data.role,
         })
       );
+
+      // 🔹 Trigger updates immediately
+      await loadCart();
+      await loadWishlist();
 
       toast.success("Login successful");
       navigate(res.data.role === "Admin" ? "/admin/dashboard" : "/");
