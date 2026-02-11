@@ -54,13 +54,12 @@ function CartPage() {
           {/* Cart Items */}
           <div className="space-y-6">
             {cart.map((item) => (
-              <div key={item.productId}>
               <div
-                key={item.productId}
+                key={item.productId} // ✅ Moved key here
                 className="flex items-center bg-white shadow-md rounded-xl p-5"
               >
                 <img
-                  src={item.imageUrl || "https://via.placeholder.com/120"}
+                  src={item.imageUrl || "https://placehold.co/120"} // ✅ Reliable placeholder
                   alt={item.productName}
                   className="w-24 h-24 object-cover rounded-lg"
                 />
@@ -111,7 +110,6 @@ function CartPage() {
                     Remove
                   </button>
                 </div>
-              </div>
               </div>
             ))}
           </div>

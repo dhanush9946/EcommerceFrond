@@ -28,30 +28,94 @@ export default function Checkout() {
       return;
     }
 
-    // 1️⃣ Create Order
+    // 1️⃣ Create Order (Your backend order)
+    // 1️⃣ Create Order (Your backend order)
     const orderRes = await api.post("/orders/checkout", {
       shippingAddress: form.address,
       paymentMethod: form.paymentMethod
     });
 
-    const { orderId, totalAmount } = orderRes.data;
+    // Backend returns { OrderId: "..." } or { orderId: "..." } but NOT totalAmount
+    const orderId = orderRes.data.orderId || orderRes.data.OrderId;
+    const amountToPay = totalPrice;
 
-    // 2️⃣ Mock Payment API
-    await api.post("/payments", {
-      orderId,
-      amount: totalAmount,
-      method: form.paymentMethod
-    });
+    // 🔹 CASE 1: COD
+    if (form.paymentMethod === "cod") {
+      await api.post("/payments", {
+        orderId,
+        amount: amountToPay,
+        method: "cod"
+      });
 
-    toast.success("Order placed successfully 🎉");
-    clearCart();
-    navigate("/order-success");
+      toast.success("Order placed successfully 🎉");
+      clearCart();
+      navigate("/order-success");
+      return;
+    }
+
+    // 🔹 CASE 2: Razorpay
+    if (form.paymentMethod === "razorpay") {
+
+      // 2️⃣ Create Razorpay Order
+      const razorRes = await api.post("/payments/create-order", {
+            amount: amountToPay
+            });
+
+
+      const { orderId: razorOrderId, key, Key } = razorRes.data;
+      const razorpayKey = key || Key; // Handle casing
+
+      if (!razorpayKey || razorpayKey === "mock_key") {
+         console.warn("Using mock_key or undefined key from backend. Verify backend config.");
+      }
+
+      console.log("Razorpay Key:", razorpayKey); 
+
+      const options = {
+        key: razorpayKey,
+        amount: amountToPay * 100,
+        currency: "INR",
+        order_id: razorOrderId,
+        name: "Zyrz",
+        description: "Order Payment",
+         prefill: {
+        name: form.name,
+        contact: "9876543210", // use test-friendly number
+      },
+
+        handler: async function (response) {
+          // 3️⃣ Verify Payment
+          await api.post("/payments", {
+            orderId,
+            amount: amountToPay,
+            method: "Razorpay",
+            razorpayDetails: {
+              razorpayOrderId: response.razorpay_order_id,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpaySignature: response.razorpay_signature
+            }
+          });
+
+          toast.success("Payment successful 🎉");
+          clearCart();
+          navigate("/order-success");
+        },
+
+        theme: {
+          color: "#ec4899"
+        }
+      };
+
+      const razorpay = new window.Razorpay(options);
+      razorpay.open();
+    }
 
   } catch (error) {
-    console.error(error);
-    toast.error("Checkout failed");
+    console.error("Checkout failed:", error.response?.data || error.message);
+    toast.error(error.response?.data?.message || "Checkout failed");
   }
 };
+
 
 
   return (
@@ -94,8 +158,8 @@ export default function Checkout() {
               className="w-full border px-4 py-2 rounded"
             >
               <option value="cod">Cash on Delivery</option>
-              <option value="card">Credit/Debit Card</option>
-              <option value="upi">UPI</option>
+              <option value="razorpay">Online Payment</option>
+
             </select>
           </div>
         </div>
@@ -104,8 +168,9 @@ export default function Checkout() {
         <div className="border p-6 rounded-lg shadow-md">
           <h2 className="text-xl font-semibold mb-4">Order Summary</h2>
           <ul className="divide-y">
-            {cart.map((item) => (
-              <li key={item.id} className="py-2 flex justify-between">
+            {cart.map((item, index) => (
+               <li key={`${item.id}-${index}`} className="py-2 flex justify-between">
+
                 <span>
                   {item.name} x {item.qty || 1}
                 </span>
