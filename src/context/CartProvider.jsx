@@ -67,6 +67,13 @@ function CartProvider({ children }) {
 
 
   const decreaseQty = async (productId) => {
+  // Find the current item quantity
+  const item = cart.find((i) => i.productId === productId);
+  if (item && item.quantity <= 1) {
+    toast.error("Minimum quantity is 1. Remove the item if you don't want it.");
+    return;
+  }
+
   try {
     await api.put("/user/cart/update-quantity", {
       productId: productId,

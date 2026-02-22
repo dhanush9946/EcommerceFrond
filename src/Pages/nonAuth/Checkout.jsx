@@ -22,99 +22,114 @@ export default function Checkout() {
   };
 
   const handleCheckout = async () => {
-  try {
-    if (!form.name || !form.phone || !form.address) {
-      toast.error("Please fill all fields");
-      return;
-    }
-
-    // 1️⃣ Create Order (Your backend order)
-    // 1️⃣ Create Order (Your backend order)
-    const orderRes = await api.post("/orders/checkout", {
-      shippingAddress: form.address,
-      paymentMethod: form.paymentMethod
-    });
-
-    // Backend returns { OrderId: "..." } or { orderId: "..." } but NOT totalAmount
-    const orderId = orderRes.data.orderId || orderRes.data.OrderId;
-    const amountToPay = totalPrice;
-
-    // 🔹 CASE 1: COD
-    if (form.paymentMethod === "cod") {
-      await api.post("/payments", {
-        orderId,
-        amount: amountToPay,
-        method: "cod"
-      });
-
-      toast.success("Order placed successfully 🎉");
-      clearCart();
-      navigate("/order-success");
-      return;
-    }
-
-    // 🔹 CASE 2: Razorpay
-    if (form.paymentMethod === "razorpay") {
-
-      // 2️⃣ Create Razorpay Order
-      const razorRes = await api.post("/payments/create-order", {
-            amount: amountToPay
-            });
-
-
-      const { orderId: razorOrderId, key, Key } = razorRes.data;
-      const razorpayKey = key || Key; // Handle casing
-
-      if (!razorpayKey || razorpayKey === "mock_key") {
-         console.warn("Using mock_key or undefined key from backend. Verify backend config.");
+    try {
+      if (!form.name || !form.phone || !form.address) {
+        toast.error("Please fill all fields");
+        return;
       }
 
-      console.log("Razorpay Key:", razorpayKey); 
+      // 1️⃣ Create order (Status = Pending, stock reserved)
+      const orderRes = await api.post("/orders/checkout", {
+        shippingAddress: form.address,
+        paymentMethod: form.paymentMethod,
+      });
 
-      const options = {
-        key: razorpayKey,
-        amount: amountToPay * 100,
-        currency: "INR",
-        order_id: razorOrderId,
-        name: "Zyrz",
-        description: "Order Payment",
-         prefill: {
-        name: form.name,
-        contact: "9876543210", // use test-friendly number
-      },
+      const orderId = orderRes.data.orderId || orderRes.data.OrderId;
+      const amountToPay = totalPrice;
 
-        handler: async function (response) {
-          // 3️⃣ Verify Payment
-          await api.post("/payments", {
-            orderId,
-            amount: amountToPay,
-            method: "Razorpay",
-            razorpayDetails: {
-              razorpayOrderId: response.razorpay_order_id,
-              razorpayPaymentId: response.razorpay_payment_id,
-              razorpaySignature: response.razorpay_signature
+      // ─── COD ────────────────────────────────────────────────────────────────
+      if (form.paymentMethod === "cod") {
+        // 2️⃣ Record payment → backend marks order Placed and clears cart in DB
+        await api.post("/payments", {
+          orderId,
+          amount: amountToPay,
+          method: "cod",
+          paymentStatus: "success",
+        });
+
+        toast.success("Order placed successfully 🎉");
+        clearCart(); // clear local cart state
+        navigate("/order-success");
+        return;
+      }
+
+      // ─── Razorpay ───────────────────────────────────────────────────────────
+      if (form.paymentMethod === "razorpay") {
+        // 2️⃣ Create Razorpay session
+        const razorRes = await api.post("/payments/create-order", {
+          amount: amountToPay,
+        });
+
+        const { orderId: razorOrderId, key, Key } = razorRes.data;
+        const razorpayKey = key || Key;
+
+        const options = {
+          key: razorpayKey,
+          amount: amountToPay * 100,
+          currency: "INR",
+          order_id: razorOrderId,
+          name: "Zyrz",
+          description: "Order Payment",
+          prefill: {
+            name: form.name,
+            contact: form.phone,
+          },
+          theme: { color: "#ec4899" },
+
+          // 3️⃣ SUCCESS — only Razorpay calls this when payment is confirmed
+          handler: async function (response) {
+            try {
+              await api.post("/payments", {
+                orderId,
+                amount: amountToPay,
+                method: "Razorpay",
+                paymentStatus: "success",
+                razorpayDetails: {
+                  razorpayOrderId: response.razorpay_order_id,
+                  razorpayPaymentId: response.razorpay_payment_id,
+                  razorpaySignature: response.razorpay_signature,
+                },
+              });
+              // Backend has now: set order=Placed, cleared cart in DB
+              toast.success("Payment successful 🎉");
+              clearCart(); // sync local state
+              navigate("/order-success");
+            } catch (err) {
+              console.error("Payment verification failed:", err);
+              toast.error("Payment verification failed. Please contact support.");
             }
-          });
+          },
+        };
 
-          toast.success("Payment successful 🎉");
-          clearCart();
-          navigate("/order-success");
-        },
+        const razorpay = new window.Razorpay(options);
 
-        theme: {
-          color: "#ec4899"
-        }
-      };
+        // 4️⃣ FAILURE — Razorpay fires this on declined / failed payment
+        razorpay.on("payment.failed", async function (response) {
+          console.error("Payment failed:", response.error);
+          try {
+            // Only send what's available — NO razorpayDetails (no signature on failure)
+            await api.post("/payments", {
+              orderId,
+              amount: amountToPay,
+              method: "Razorpay",
+              paymentStatus: "failed",
+            });
+            // Backend records Failed — cart and order remain untouched
+          } catch (err) {
+            console.error("Failed to record payment failure:", err);
+          }
+          toast.error(
+            `Payment failed: ${response.error.description || "Please try again."}`
+          );
+        });
 
-      const razorpay = new window.Razorpay(options);
-      razorpay.open();
+        razorpay.open();
+      }
+    } catch (error) {
+      console.error("Checkout failed:", error.response?.data || error.message);
+      toast.error(error.response?.data?.message || "Checkout failed");
     }
-
-  } catch (error) {
-    console.error("Checkout failed:", error.response?.data || error.message);
-    toast.error(error.response?.data?.message || "Checkout failed");
-  }
-};
+  };
 
 
 

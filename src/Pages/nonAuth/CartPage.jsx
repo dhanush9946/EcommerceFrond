@@ -55,7 +55,7 @@ function CartPage() {
           <div className="space-y-6">
             {cart.map((item) => (
               <div
-                key={item.productId} // ✅ Moved key here
+                key={item.cartId} // ✅ Moved key here
                 className="flex items-center bg-white shadow-md rounded-xl p-5"
               >
                 <img
