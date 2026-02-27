@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "http://localhost:5028/api",
+  baseURL: import.meta.env.VITE_API_BASE_URL,
   withCredentials: true, // allows refresh cookie
 });
 
@@ -29,12 +29,12 @@ api.interceptors.response.use(
 
       try {
         const res = await axios.post(
-          "http://localhost:5028/api/auth/refresh",
+          `${import.meta.env.VITE_API_BASE_URL}/auth/refresh`,
           {},
           { withCredentials: true }
         );
 
-        
+
         localStorage.setItem("accessToken", res.data.accessToken);
 
         originalRequest.headers.Authorization =
