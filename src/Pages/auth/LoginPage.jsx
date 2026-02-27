@@ -1,7 +1,7 @@
 
 import React, { useState } from "react";
 import api from "../../services/api";
-import { CartContext, WishlistContext } from "../../Context/CreateContext";
+import { CartContext, WishlistContext } from "../../context/CreateContext";
 import { useNavigate, Link } from "react-router-dom";
 import toast from "react-hot-toast";
 
