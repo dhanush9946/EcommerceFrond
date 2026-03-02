@@ -21,7 +21,7 @@ const AdminProducts = () => {
     maxOrderQuantity: "",
     gender: "",
     description: "",
-    image: "",
+    imageUrl: "",
     status: "active",
   });
 
@@ -76,7 +76,7 @@ const AdminProducts = () => {
         maxOrderQuantity: "",
         gender: "",
         description: "",
-        imageUrl: "",
+        image: "",
         status: "active",
       });
 
