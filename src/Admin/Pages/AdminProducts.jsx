@@ -21,7 +21,7 @@ const AdminProducts = () => {
     maxOrderQuantity: "",
     gender: "",
     description: "",
-    imageUrl: "",
+    image: "",
     status: "active",
   });
 
